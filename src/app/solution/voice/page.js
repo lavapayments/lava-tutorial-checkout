@@ -81,7 +81,7 @@ export default function SolutionVoice() {
                 className="w-full px-4 py-3 rounded-lg border border-gray-800 bg-gray-900 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#ff5a1f] disabled:opacity-50 resize-none"
               />
               <p className="mt-2 text-xs text-gray-500">
-                Try: "I'm so excited for my weekend ahead at Cal Hacks"
+                Try: "The weather today is perfect for a walk in the park"
               </p>
             </div>
             <button

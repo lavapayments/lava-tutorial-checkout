@@ -128,4 +128,4 @@ fetch(lavaForwardUrl, {
 - [Next.js Documentation](https://nextjs.org/docs)
 ---
 
-**Need help?** Check `/solution/*` routes or reach out on [Discord](https://discord.gg/ew3abadB)
+**Need help?** Check `/solution/*` routes or reach out on [Discord](https://discord.gg/7bkJnVsD7Y)
