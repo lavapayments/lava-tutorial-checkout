@@ -164,7 +164,13 @@ export default function SolutionChat() {
       </form>
 
       {/* Navigation */}
-      <div className="mt-6 py-4 border-t border-gray-800 flex justify-center text-sm">
+      <div className="mt-6 py-4 border-t border-gray-800 flex justify-center gap-4 text-sm">
+        <Link
+          href="/solution/chat-checkout"
+          className="inline-flex items-center bg-gray-700 px-5 py-2 rounded-lg text-sm font-semibold hover:bg-gray-600 transition-colors border border-gray-600"
+        >
+          See Chat with Billing Enabled
+        </Link>
         <Link
           href="/solution/image"
           className="inline-flex items-center bg-sky-800 px-5 py-2 rounded-lg text-sm font-semibold hover:bg-sky-700 transition-colors border border-sky-400/30"
