@@ -1,7 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
-import { useLavaCheckout } from '@lavapayments/checkout';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
 
 export default function ChatWithCheckout() {
@@ -11,56 +10,53 @@ export default function ChatWithCheckout() {
   const [aiPersonality, setAiPersonality] = useState('');
 
   // Checkout state
-  const [checkoutStatus, setCheckoutStatus] = useState('idle'); // idle, loading, completed
-  const [connectionSecret, setConnectionSecret] = useState(null);
+  const [checkoutStatus, setCheckoutStatus] = useState('idle'); // idle, loading, waiting, completed
+  const [customerSecret, setCustomerSecret] = useState(null);
   const [checkoutError, setCheckoutError] = useState(null);
-
-  // User info from connection
-  const [connectionId, setConnectionId] = useState(null);
-  const [userInfo, setUserInfo] = useState({ firstName: '', lastName: '', balance: '0' });
+  const [balance, setBalance] = useState(null);
 
   const inputRef = useRef(null);
   const messagesEndRef = useRef(null);
+  const pollIntervalRef = useRef(null);
 
-  // Initialize the Lava checkout hook
-  const { open } = useLavaCheckout({
-    onSuccess: async (data) => {
-      console.log('Checkout success:', data);
+  // Poll for checkout completion after redirect
+  const startPolling = useCallback(() => {
+    if (pollIntervalRef.current) return;
+    pollIntervalRef.current = setInterval(async () => {
       try {
-        const response = await fetch(`/api/solution/checkout/connection/${data.connectionId}`);
-        const result = await response.json();
-
-        if (response.ok && result.connectionSecret) {
-          setConnectionId(data.connectionId);
-          setConnectionSecret(result.connectionSecret);
-          setUserInfo({
-            firstName: result.firstName,
-            lastName: result.lastName,
-            balance: result.balance,
-          });
+        const response = await fetch('/api/solution/checkout/status');
+        const data = await response.json();
+        if (data.completed) {
+          clearInterval(pollIntervalRef.current);
+          pollIntervalRef.current = null;
+          setCustomerSecret(data.customerSecret);
+          setBalance(data.fundedAmount);
           setCheckoutStatus('completed');
-        } else {
-          setCheckoutError(result.error || 'Failed to get connection details');
-          setCheckoutStatus('idle');
+          // Clear the URL param
+          window.history.replaceState({}, '', '/solution/chat-checkout');
         }
       } catch (error) {
-        console.error('Error getting connection:', error);
-        setCheckoutError('Failed to get connection details');
-        setCheckoutStatus('idle');
+        console.error('Error polling for checkout status:', error);
       }
-    },
-    onError: (error) => {
-      console.error('Checkout error:', error);
-      setCheckoutError(error.error || 'Checkout failed');
-      setCheckoutStatus('idle');
-    },
-    onCancel: () => {
-      console.log('Checkout cancelled');
-      setCheckoutStatus('idle');
-    },
-  });
+    }, 2000);
+  }, []);
 
-  // Start checkout - create session and open checkout UI
+  // Check URL params on mount — customer returns here after checkout
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('checkout') === 'complete') {
+      setCheckoutStatus('waiting');
+      startPolling();
+    }
+
+    return () => {
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+      }
+    };
+  }, [startPolling]);
+
+  // Start checkout — create session and redirect to Lava's hosted checkout
   const startCheckout = async () => {
     setCheckoutStatus('loading');
     setCheckoutError(null);
@@ -72,8 +68,9 @@ export default function ChatWithCheckout() {
 
       const data = await response.json();
 
-      if (response.ok && data.checkoutToken) {
-        open(data.checkoutToken);
+      if (response.ok && data.checkoutUrl) {
+        // Redirect to Lava's hosted checkout page
+        window.location.href = data.checkoutUrl;
       } else {
         console.error('Failed to create checkout session:', data.error);
         setCheckoutError(data.error || 'Failed to create checkout session');
@@ -86,25 +83,11 @@ export default function ChatWithCheckout() {
     }
   };
 
-  // Refresh wallet balance
-  const refreshBalance = async () => {
-    if (!connectionId) return;
-    try {
-      const response = await fetch(`/api/solution/checkout/connection/${connectionId}`);
-      const result = await response.json();
-      if (response.ok && result.balance) {
-        setUserInfo(prev => ({ ...prev, balance: result.balance }));
-      }
-    } catch (error) {
-      console.error('Error refreshing balance:', error);
-    }
-  };
-
   // Form submission logic
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (!input.trim() || !connectionSecret) return;
+    if (!input.trim() || !customerSecret) return;
 
     const userMessage = { role: 'user', content: input };
 
@@ -122,7 +105,7 @@ export default function ChatWithCheckout() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           messages: messagesToSend,
-          connectionSecret
+          customerSecret
         }),
       });
 
@@ -130,8 +113,6 @@ export default function ChatWithCheckout() {
 
       if (response.ok) {
         setMessages(prev => [...prev, { role: 'assistant', content: data.message }]);
-        // Refresh balance after successful message
-        refreshBalance();
       } else {
         setMessages(prev => [...prev, {
           role: 'assistant',
@@ -160,16 +141,32 @@ export default function ChatWithCheckout() {
     }
   }, [isLoading, checkoutStatus]);
 
-  // Render checkout UI (the library handles the iframe/modal automatically)
+  // Render checkout UI
   const renderCheckout = () => {
+    if (checkoutStatus === 'waiting') {
+      return (
+        <div className="flex-1 flex flex-col items-center justify-center">
+          <div className="text-center max-w-md">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#ff5a1f] mx-auto mb-4"></div>
+            <h3 className="text-xl font-semibold text-white mb-4">
+              Waiting for checkout confirmation...
+            </h3>
+            <p className="text-gray-400">
+              Your payment is being processed. This page will update automatically.
+            </p>
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div className="flex-1 flex flex-col items-center justify-center">
         <div className="text-center max-w-md">
           <h3 className="text-xl font-semibold text-white mb-4">
-            Connect Your Payment Method
+            Subscribe to Get Started
           </h3>
           <p className="text-gray-400 mb-6">
-            To use this chat, you need to complete the checkout process to connect your payment method.
+            To use this chat, you need to complete checkout to fund your account.
             Your usage will be billed based on the AI requests you make.
           </p>
           {checkoutError && (
@@ -180,7 +177,7 @@ export default function ChatWithCheckout() {
             disabled={checkoutStatus === 'loading'}
             className="px-6 py-3 bg-[#ff5a1f] text-white rounded-lg font-medium hover:bg-[#e64f1a] transition-colors disabled:opacity-50"
           >
-            {checkoutStatus === 'loading' ? 'Loading...' : 'Start Checkout'}
+            {checkoutStatus === 'loading' ? 'Redirecting...' : 'Start Checkout'}
           </button>
         </div>
       </div>
@@ -193,10 +190,10 @@ export default function ChatWithCheckout() {
       <div className="text-center py-4 border-b border-gray-800">
         <h2 className="text-2xl font-bold text-white">Chat with Checkout</h2>
         <p className="text-gray-400 mt-2">
-          AI Chatbot with Lava Checkout integration for customer billing
+          AI Chatbot with Lava Flex Checkout for customer billing
         </p>
         <p className="text-sm text-gray-500 mt-1">
-          Users complete checkout before chatting - usage is billed to their account
+          Users complete checkout before chatting - usage is billed to their wallet
         </p>
       </div>
 
@@ -209,15 +206,13 @@ export default function ChatWithCheckout() {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="w-8 h-8 rounded-full bg-[#ff5a1f] flex items-center justify-center text-white text-sm font-medium">
-                  {userInfo.firstName?.[0] || 'U'}
+                  C
                 </div>
                 <div>
-                  <p className="text-white text-sm font-medium">
-                    {userInfo.firstName && userInfo.lastName
-                      ? `${userInfo.firstName} ${userInfo.lastName}`
-                      : 'Connected User'}
-                  </p>
-                  <p className="text-gray-500 text-xs">Balance: ${userInfo.balance}</p>
+                  <p className="text-white text-sm font-medium">Connected Customer</p>
+                  {balance && (
+                    <p className="text-gray-500 text-xs">Funded: ${parseFloat(balance).toFixed(2)}</p>
+                  )}
                 </div>
               </div>
               <div className="text-right">
@@ -245,7 +240,7 @@ export default function ChatWithCheckout() {
             {messages.length === 0 ? (
               <div className="text-center text-gray-400 mt-12">
                 <p className="text-xl">You're all set!</p>
-                <p className="mt-2">Start chatting - usage will be charged to your account.</p>
+                <p className="mt-2">Start chatting - usage will be charged to your wallet.</p>
               </div>
             ) : (
               messages.map((message, index) => (

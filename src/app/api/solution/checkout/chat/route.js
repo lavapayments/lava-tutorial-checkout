@@ -1,7 +1,7 @@
 // API Route: /api/solution/checkout/chat
-// Chat endpoint that bills usage to the customer's connected payment method
+// Chat endpoint that bills usage to the customer's wallet via flex forward token
 
-import { Lava } from '@lavapayments/nodejs';
+import { Lava } from '../../../../../../lib/index.js';
 
 export async function POST(request) {
   try {
@@ -12,34 +12,37 @@ export async function POST(request) {
       );
     }
 
-    if (!process.env.LAVA_PRODUCT_SECRET) {
+    if (!process.env.LAVA_PLAN_ID) {
       return Response.json(
-        { error: 'LAVA_PRODUCT_SECRET is not configured. Please add it to your .env file.' },
+        { error: 'LAVA_PLAN_ID is not configured. Please add it to your .env file.' },
         { status: 500 }
       );
     }
 
-    const { messages, connectionSecret } = await request.json();
+    const { messages, customerSecret } = await request.json();
 
-    if (!connectionSecret) {
+    if (!customerSecret) {
       return Response.json(
-        { error: 'connectionSecret is required. Please complete checkout first.' },
+        { error: 'customerSecret is required. Please complete checkout first.' },
         { status: 400 }
       );
     }
 
     // Initialize the Lava SDK
-    const lava = new Lava(process.env.LAVA_API_KEY, { apiVersion: '2025-04-28.v1' });
+    const lava = new Lava(process.env.LAVA_API_KEY, {
+      apiVersion: '2025-04-28.v1',
+      baseUrl: process.env.LAVA_API_BASE_URL,
+    });
 
-    // Generate a forward token using the customer's connection
-    // This will bill usage to the customer's payment method
+    // Generate a flex L3 forward token using the customer's profile secret and plan
+    // This will bill usage to the customer's wallet
     const forwardToken = lava.generateForwardToken({
-      connection_secret: connectionSecret,
-      product_secret: process.env.LAVA_PRODUCT_SECRET
+      customer_profile_secret: customerSecret,
+      plan_id: process.env.LAVA_PLAN_ID,
     });
 
     // Configure the API URL
-    const lavaForwardUrl = process.env.LAVA_FORWARD_URL || 'https://api.lavapayments.com/v1/forward?u=';
+    const lavaForwardUrl = process.env.LAVA_FORWARD_URL || 'http://localhost:3000/v1/forward?u=';
     const chatEndpoint = process.env.AI_CHAT_URL || 'https://api.groq.com/openai/v1/chat/completions';
     const lavaApiUrl = lavaForwardUrl + chatEndpoint;
     const model = 'llama-3.1-8b-instant';

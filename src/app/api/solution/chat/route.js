@@ -1,5 +1,6 @@
 // API Route: /api/solution/chat
 // This is the COMPLETE SOLUTION showing how to integrate Groq (Llama) with Lava
+// In flex mode, merchant-pays uses just the secret key (L0 token)
 
 export async function POST(request) {
   try {
@@ -19,20 +20,17 @@ export async function POST(request) {
     console.log('messages:', messages);
 
     // TODO #2 SOLUTION: Create the Lava forward token
-    // This token is used to authenticate the request and provide usage tracking capabilities.
+    // Flex L0 token: merchant pays using just the secret key
     const lavaForwardToken = {
       secret_key: process.env.LAVA_API_KEY,
-      connection_secret: process.env.LAVA_SELF_CONNECTION_SECRET,
-      product_secret: process.env.LAVA_SELF_PRODUCT_SECRET
     };
 
     // Encode the forward token using base64
-    // Base64 is a standard encoding format that is easy to decode and use in URLs.
     const encodedForwardToken = Buffer.from(JSON.stringify(lavaForwardToken)).toString('base64');
 
     // TODO #3 SOLUTION: Configure the Lava API URL
     // Default to Groq if user has not yet configured their env variables.
-    const lavaForwardUrl = process.env.LAVA_FORWARD_URL || 'https://api.lavapayments.com/v1/forward?u=';
+    const lavaForwardUrl = process.env.LAVA_FORWARD_URL || 'http://localhost:3000/v1/forward?u=';
     const chatEndpoint = process.env.AI_CHAT_URL || 'https://api.groq.com/openai/v1/chat/completions';
     const lavaApiUrl = lavaForwardUrl + chatEndpoint;
     const model = 'llama-3.1-8b-instant';

@@ -1,0 +1,44 @@
+{
+  "name": "@lavapayments/nodejs",
+  "version": "6.0.1",
+  "description": "Backend SDK for Lava Payments API - enabling usage-based billing for AI services",
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup --dts --format cjs,esm src/index.ts",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run build",
+    "clean": "rm -rf dist"
+  },
+  "keywords": [
+    "lava",
+    "payments",
+    "billing",
+    "ai",
+    "openai",
+    "anthropic",
+    "deepseek",
+    "mistral",
+    "xai",
+    "google",
+    "gemini",
+    "claude",
+    "usage-based",
+    "proxy"
+  ],
+  "author": "Lava",
+  "license": "MIT",
+  "homepage": "https://github.com/lavapayments/nodejs",
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "tsup": "^8.0.0",
+    "typescript": "^5.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
